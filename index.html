@@ -87,7 +87,7 @@ function wallBetween(x1,y1,x2,y2,thick=8){
 }
 
 function build(){
-  eng=Engine.create({gravity:{x:0,y:0.1}});
+  eng=Engine.create({gravity:{x:0,y:0.2}});
   const cx=W/2;let y=50;const A=[];spinners=[];
 
   const pg=(x,y,r=4)=>Bodies.circle(x,y,r,{isStatic:true,label:'peg',restitution:0.95,friction:0});
