@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marble Race</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#07060d;color:#fff;font-family:'Pretendard',-apple-system,sans-serif;overflow:hidden;height:100vh}
+.setup{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:100;background:#07060d;transition:opacity .5s}
+.setup.hidden{opacity:0;pointer-events:none}
+.setup h1{font-size:2rem;background:linear-gradient(90deg,#ff6b6b,#ffd93d,#6bcb77,#4d96ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:3px}
+.setup p{color:#777;font-size:.85rem}
+.mg{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:420px}
+.mi{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:12px;cursor:pointer;user-select:none;border:2px solid transparent}
+.mc{width:20px;height:20px;border-radius:6px;border:2px solid #555;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mi.on .mc{border-color:currentColor;background:currentColor}
+.mi.on .mc::after{content:'✓';color:#07060d;font-size:.8rem;font-weight:900}
+.mi.off{opacity:.35}.mi.off .mn{text-decoration:line-through}
+.mn{font-weight:700;font-size:.95rem}
+.nt{font-size:.7rem;color:#888;margin-top:6px}
+.bs{margin-top:10px;padding:14px 50px;background:linear-gradient(135deg,#ff6b6b,#ee5a24);color:#fff;border:none;border-radius:30px;font-size:1.2rem;font-weight:700;cursor:pointer;box-shadow:0 4px 24px rgba(255,80,80,.4);letter-spacing:2px}
+.bs:disabled{opacity:.3;cursor:not-allowed}
+canvas{display:block}
+.hud{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:50;opacity:0;transition:opacity .4s;flex-wrap:wrap;justify-content:center;max-width:95vw}.hud.show{opacity:1}
+.hb{display:flex;align-items:center;gap:3px;padding:2px 8px;border-radius:16px;font-size:.7rem;font-weight:700;opacity:.4;transition:all .3s}.hb.a{opacity:1}.hb.f{opacity:1;filter:brightness(1.3)}
+.hb .d{width:7px;height:7px;border-radius:50%}.hb .p{min-width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.55rem}
+.co{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:150;pointer-events:none;background:rgba(7,6,13,.5);opacity:0;transition:opacity .3s}.co.show{opacity:1}
+.cn{font-size:8rem;font-weight:900;background:linear-gradient(135deg,#ff6b6b,#ffd93d);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+@keyframes pop{0%{transform:scale(2.5);opacity:0}40%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.8}}
+.rb{position:fixed;left:10px;top:50%;transform:translateY(-50%);z-index:40;display:none;flex-direction:column;gap:3px;background:#0a0a1acc;border:1px solid #ffffff11;border-radius:10px;padding:8px 10px;backdrop-filter:blur(8px);min-width:100px}.rb.show{display:flex}
+.rbt{font-size:.6rem;color:#ffd93d88;letter-spacing:2px;text-align:center;margin-bottom:3px;font-weight:700}
+.re{display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:700;padding:2px 5px;border-radius:5px;opacity:0;transform:translateX(-10px);transition:all .4s cubic-bezier(.34,1.56,.64,1)}.re.show{opacity:1;transform:translateX(0)}
+.rn{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.55rem;flex-shrink:0}
+.ro{position:fixed;inset:0;background:rgba(7,6,13,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:200;opacity:0;pointer-events:none;transition:opacity .6s}.ro.show{opacity:1;pointer-events:auto}
+.ro h2{font-size:1.4rem;color:#ffd93d;letter-spacing:3px}
+.rod{display:flex;flex-direction:column;gap:7px;align-items:center}
+.rr{display:flex;align-items:center;gap:8px;padding:7px 20px;border-radius:10px;font-size:1rem;font-weight:700;opacity:0;transform:translateX(-30px);transition:all .5s cubic-bezier(.34,1.56,.64,1)}.rr.show{opacity:1;transform:translateX(0)}
+.br{margin-top:10px;padding:10px 30px;background:#222;color:#fff;border:1px solid #444;border-radius:20px;cursor:pointer;font-size:.9rem;font-weight:600}
+</style>
+</head>
+<body>
+<div class="setup" id="setup">
+  <h1>MARBLE RACE</h1>
+  <p>참석 멤버를 선택하세요</p>
+  <div class="mg" id="mg"></div>
+  <div class="nt" id="mc"></div>
+  <button class="bs" id="sb" disabled onclick="go()">R A C E !</button>
+</div>
+<div class="hud" id="hud"></div>
+<canvas id="c"></canvas>
+<div class="co" id="co"><div class="cn" id="cn"></div></div>
+<div class="rb" id="rb"><div class="rbt">RANKING</div><div id="re"></div></div>
+<div class="ro" id="ro"><h2>SCRUM ORDER</h2><div class="rod" id="rod"></div><button class="br" onclick="reset()">다시하기</button></div>
+<script>
+const{Engine,Runner,Bodies,Body,Composite,Events}=Matter;
+const COL=['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ee5a24','#a55eea','#0abde3','#ff9ff3','#1dd1a1','#f8a5c2'];
+const TEAM=[{n:'배호연',c:1},{n:'박희정',c:1},{n:'김시성',c:1},{n:'박지호',c:1},{n:'김용덕',c:1},{n:'권진우',c:1}];
+let guests=[],names=[],FO=[],run=0,eng,rnr,MB=[],cam={x:0,y:0,z:1,tx:0,ty:0,tz:1};
+const W=400,BR=7,TW=150;
+let wH=0,fY=0,spinners=[];
+// 이펙트
+let particles=[],popups=[],trails={},prevLeader='',overtakeFlash=0;
+let raceStart=0,raceTime=0,raceActive=false;
+
+// UI
+function tM(i){TEAM[i].c=!TEAM[i].c;rM()}
+document.addEventListener('DOMContentLoaded',()=>rM());
+function rM(){
+  const g=document.getElementById('mg');let h='';
+  TEAM.forEach((m,i)=>{const c=COL[i%COL.length],cl=m.c?'on':'off';
+    h+=`<label class="mi ${cl}" style="background:${c}15;color:${c};border-color:${m.c?c+'55':'transparent'}" onclick="event.preventDefault();tM(${i})"><div class="mc"></div><span class="mn">${m.n}</span></label>`;
+  });
+  g.innerHTML=h;
+  names=TEAM.filter(m=>m.c).map(m=>m.n).concat(guests);
+  document.getElementById('mc').textContent=`${names.length}명`;
+  document.getElementById('sb').disabled=names.length<2;
+}
+
+// 두 점을 잇는 벽 (정확한 위치+각도)
+function wallBetween(x1,y1,x2,y2,thick=8){
+  const cx=(x1+x2)/2,cy=(y1+y2)/2;
+  const len=Math.sqrt((x2-x1)**2+(y2-y1)**2);
+  const ang=Math.atan2(y2-y1,x2-x1);
+  return Bodies.rectangle(cx,cy,len,thick,{isStatic:true,angle:ang,label:'wall',friction:0.02,restitution:0});
+}
+
+function build(){
+  eng=Engine.create({gravity:{x:0,y:0.2}});
+  const cx=W/2;let y=50;const A=[];spinners=[];
+
+  const pg=(x,y,r=4)=>Bodies.circle(x,y,r,{isStatic:true,label:'peg',restitution:0.95,friction:0});
+  const bp=(x,y,r=14)=>Bodies.circle(x,y,r,{isStatic:true,label:'bumper',restitution:0.8,friction:0});
+
+  function addSpin(cx_,cy_,len,spd){
+    const s=Bodies.rectangle(cx_,cy_,len,7,{isStatic:true,label:'spinner'});
+    spinners.push({bodies:[s],cx:cx_,cy:cy_,speed:spd});A.push(s);
+  }
+  function addCross(cx_,cy_,len,spd){
+    const a=Bodies.rectangle(cx_,cy_,len,7,{isStatic:true,label:'spinner'});
+    const b=Bodies.rectangle(cx_,cy_,7,len,{isStatic:true,label:'spinner'});
+    spinners.push({bodies:[a,b],cx:cx_,cy:cy_,speed:spd});A.push(a,b);
+  }
+  // 벽 경로: 좌벽과 우벽의 노드 좌표를 정의하고 순차 연결
+  const wallL=[], wallR=[];
+  function seg(ly,lx_,ry,rx_){
+    wallL.push({x:lx_,y:ly}); wallR.push({x:rx_,y:ry});
+  }
+
+  y=50;
+  // ─── S자 트랙 경로 정의 ───
+  // 섹션마다 좌벽/우벽 좌표를 내려가며 지정
+  // 중앙 cx=200, 트랙폭 TW=150 → 기본 L=125, R=275
+
+  // SEC 1: 직선 출발 (y=50~200)
+  seg(y, cx-TW/2, y, cx+TW/2);
+  y=200;
+  seg(y, cx-TW/2, y, cx+TW/2);
+
+  // SEC 2: 우측으로 완만한 커브 (y=200~400) — 40px 이동, 200px 거리
+  y=400;
+  seg(y, cx-TW/2+40, y, cx+TW/2+40);
+
+  // SEC 3: 직선 (y=400~600)
+  y=600;
+  seg(y, cx-TW/2+40, y, cx+TW/2+40);
+
+  // SEC 4: 좌측으로 완만한 커브 (y=600~850) — 80px 이동, 250px 거리
+  y=850;
+  seg(y, cx-TW/2-40, y, cx+TW/2-40);
+
+  // SEC 5: 직선 (y=850~1050)
+  y=1050;
+  seg(y, cx-TW/2-40, y, cx+TW/2-40);
+
+  // SEC 6: 중앙으로 복귀 (y=1050~1250) — 완만하게
+  y=1250;
+  seg(y, cx-TW/2, y, cx+TW/2);
+
+  // SEC 7: 직선 (y=1250~1450)
+  y=1450;
+  seg(y, cx-TW/2, y, cx+TW/2);
+
+  // SEC 8: 우측 완만 커브 (y=1450~1650)
+  y=1650;
+  seg(y, cx-TW/2+30, y, cx+TW/2+30);
+
+  // SEC 9: 중앙 복귀 + 벽 끝 (fY 직전까지)
+  y=1790;
+  seg(y, cx-TW/2, y, cx+TW/2);
+
+  // 벽 생성
+  for(let i=0;i<wallL.length-1;i++){
+    A.push(wallBetween(wallL[i].x, wallL[i].y, wallL[i+1].x, wallL[i+1].y));
+    A.push(wallBetween(wallR[i].x, wallR[i].y, wallR[i+1].x, wallR[i+1].y));
+  }
+
+  // ─── 장애물 배치 (트랙 중심 기준) ───
+
+  // ─── 다양한 장애물 ───
+
+  // 피스톤: 상하 왕복하는 벽
+  function addPiston(px,py,w,range,speed){
+    const body=Bodies.rectangle(px,py,w,8,{isStatic:true,label:'piston'});
+    spinners.push({bodies:[body],cx:px,cy:py,speed,type:'piston',range,offset:0});
+    A.push(body);
+  }
+
+  // 회전 삼각형
+  function addTriangle(px,py,size,speed){
+    const body=Bodies.polygon(px,py,3,size,{isStatic:true,label:'spinner',restitution:0.3});
+    spinners.push({bodies:[body],cx:px,cy:py,speed,type:'spinner'});
+    A.push(body);
+  }
+
+  // 진자: 매달린 공이 좌우 흔들림 (시각적으로 체인+공)
+  function addPendulum(anchorX,anchorY,len,r,speed){
+    const bob=Bodies.circle(anchorX,anchorY+len,r,{isStatic:true,label:'bumper',restitution:0.1});
+    spinners.push({bodies:[bob],cx:anchorX,cy:anchorY,speed,type:'pendulum',len,angle:0});
+    A.push(bob);
+  }
+
+  // 게이트: 좌우 왕복하는 벽
+  function addGate(px,py,w,h,range,speed){
+    const body=Bodies.rectangle(px,py,w,h,{isStatic:true,label:'wall'});
+    spinners.push({bodies:[body],cx:px,cy:py,speed,type:'gate',range,offset:0});
+    A.push(body);
+  }
+
+  // ═══ 장애물: 트랙 전폭 커버, 벽쪽 세이프존 없음 ═══
+  // 스피너는 TW*0.65 이상으로 벽까지 닿게.
+  // 각 섹션의 트랙 중심은 커브에 따라 다름.
+  // 각 구간별 트랙 중심:
+  //   SEC1~2: cx, SEC2~3커브후: cx+40, SEC4커브후: cx-40
+  //   SEC6복귀: cx, SEC8커브: cx+30, SEC9복귀: cx
+
+  // SEC 1 (50~200): 전폭 스피너 + 벽쪽 진자
+  addSpin(cx, 100, TW*0.65, 0.011);
+  addPendulum(cx-TW*0.4, 160, 45, 11, 0.025);
+  addPendulum(cx+TW*0.4, 160, 45, 11, -0.028);
+
+  // SEC 2 (200~400): 커브 — 전폭 십자 + 전폭 스피너
+  const c2=cx+20; // 커브 중 트랙 중심
+  addCross(c2, 270, TW*0.6, -0.009);
+  addSpin(c2, 360, TW*0.65, 0.013);
+
+  // SEC 3 (400~600): 직선 — 피스톤 + 삼각형 + 스피너
+  const c3=cx+40;
+  addPiston(c3-25, 440, TW*0.4, 25, 0.04);
+  addTriangle(c3+20, 510, 20, -0.012);
+  addSpin(c3, 580, TW*0.6, 0.014);
+
+  // SEC 4 (600~850): 커브 — 전폭 스피너 교대
+  addSpin(cx, 660, TW*0.65, -0.011);
+  addCross(cx-20, 760, TW*0.75, 0.009);
+  addSpin(cx-30, 840, TW*0.6, 0.012);
+
+  // SEC 5 (850~1050): 삼각형쌍 + 피스톤 + 진자
+  const c5=cx-40;
+  addTriangle(c5-25, 900, 22, 0.01);
+  addTriangle(c5+25, 900, 22, -0.008);
+  addPiston(c5, 970, TW*0.45, 30, -0.035);
+  addPendulum(c5, 1030, 50, 12, 0.025);
+
+  // SEC 6 (1050~1250): 복귀 — 전폭 스피너 이중
+  addSpin(cx, 1120, TW*0.65, 0.015);
+  addCross(cx, 1210, TW*0.75, -0.01);
+
+  // SEC 7 (1250~1450): 피스톤 + 삼각형 + 스피너
+  addPiston(cx+20, 1290, TW*0.4, 25, 0.038);
+  addTriangle(cx-15, 1350, 20, -0.011);
+  addSpin(cx, 1410, TW*0.55, -0.012);
+
+  // SEC 8 (1450~1650): 커브 — 전폭 십자 + 진자벽
+  const c8=cx+30;
+  addCross(c8, 1510, TW*0.6, 0.01);
+  addPendulum(c8-TW*0.3, 1600, 50, 12, -0.026);
+  addPendulum(c8+TW*0.3, 1600, 50, 12, 0.022);
+
+  // SEC 9 (1650~1850): 킹받는 구간
+  // 빠른 십자 스피너 — 1등을 날려보냄
+  // 킹받는 십자: 피니시 직전 — 맞으면 역전! (1개만, 적절한 속도)
+  addCross(cx, 1700, TW*0.4, 0.01);
+
+  // 피니시: 마지막 벽 노드(1850) 앞
+  fY=1800;
+  wH=fY+150;
+  Composite.add(eng.world,A);
+}
+
+// RENDER
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+function rsz(){cv.width=innerWidth;cv.height=innerHeight}
+addEventListener('resize',rsz);rsz();
+
+function draw(){
+  if(!run)return;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#07060d';ctx.fillRect(0,0,cv.width,cv.height);
+
+  const act=MB.filter(b=>!b.fin);
+  if(act.length){
+    act.sort((a,b)=>b.body.position.y-a.body.position.y);
+    const fr=act.filter(b=>act[0].body.position.y-b.body.position.y<120);
+    let sx=0,sy=0;for(const b of fr){sx+=b.body.position.x;sy+=b.body.position.y}
+    cam.tx=sx/fr.length;cam.ty=sy/fr.length+25;
+    const sp=fr.length>1?fr[0].body.position.y-fr[fr.length-1].body.position.y:0;
+    cam.tz=cv.height/(sp<50&&fr.length>=2?250:sp>150?450:340);
+  }else if(FO.length>0){cam.tx=W/2;cam.ty=fY-30;cam.tz=cv.height/300
+  }else{cam.tx=W/2;cam.ty=80;cam.tz=cv.height/300}
+  cam.tz=Math.max(cv.height/wH,Math.min(cam.tz,cv.height/200));
+  cam.x+=(cam.tx-cam.x)*.035;cam.y+=(cam.ty-cam.y)*.035;cam.z+=(cam.tz-cam.z)*.035;
+
+  ctx.save();
+  ctx.translate(cv.width/2,cv.height/2);ctx.scale(cam.z,cam.z);ctx.translate(-cam.x,-cam.y);
+  ctx.fillStyle='#0b0b18';ctx.fillRect(-100,-50,W+200,wH+200);
+
+  for(const body of Composite.allBodies(eng.world)){
+    const v=body.vertices;
+    if(body.label==='wall'){
+      ctx.fillStyle='#181830';ctx.strokeStyle='#3a3a6633';ctx.lineWidth=1;
+      ctx.beginPath();v.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();ctx.stroke();
+    }else if(body.label==='peg'){
+      ctx.fillStyle='#556';
+      ctx.beginPath();ctx.arc(body.position.x,body.position.y,body.circleRadius,0,Math.PI*2);ctx.fill();
+    }else if(body.label==='bumper'){
+      ctx.fillStyle='#ff6b6b';ctx.shadowColor='#ff6b6b';ctx.shadowBlur=5;
+      ctx.beginPath();ctx.arc(body.position.x,body.position.y,body.circleRadius,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+    }else if(body.label==='spinner'){
+      ctx.fillStyle='#ff9ff3aa';ctx.shadowColor='#ff9ff3';ctx.shadowBlur=4;
+      ctx.beginPath();v.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();ctx.shadowBlur=0;
+    }
+  }
+
+  // 진자 체인
+  for(const s of spinners){
+    if(s.type==='pendulum'){
+      ctx.strokeStyle='#ff9ff366';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(s.cx,s.cy);
+      const bob=s.bodies[0].position;
+      ctx.lineTo(bob.x,bob.y);ctx.stroke();
+      // 앵커 점
+      ctx.fillStyle='#ff9ff3';ctx.beginPath();ctx.arc(s.cx,s.cy,3,0,Math.PI*2);ctx.fill();
+    }
+  }
+
+  // Finish line
+  ctx.strokeStyle='#ffd93d';ctx.lineWidth=2;ctx.shadowColor='#ffd93d';ctx.shadowBlur=10;
+  ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(W/2-18,fY);ctx.lineTo(W/2+18,fY);ctx.stroke();
+  ctx.setLineDash([]);ctx.shadowBlur=0;
+  ctx.fillStyle='#ffd93d';ctx.font='bold 10px Pretendard';ctx.textAlign='center';
+  ctx.fillText('FINISH',W/2,fY-5);
+
+  // 파티클
+  particles=particles.filter(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life-=p.decay;
+    if(p.life<=0)return false;
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.sz,0,Math.PI*2);ctx.fill();
+    return true;
+  });
+  ctx.globalAlpha=1;
+
+  // Balls (잔상 + 본체)
+  for(const mb of MB){
+    const p=mb.body.position;
+    // 잔상 기록
+    if(!trails[mb.idx])trails[mb.idx]=[];
+    const tr=trails[mb.idx];
+    tr.push({x:p.x,y:p.y});
+    if(tr.length>12)tr.shift();
+    // 잔상 그리기
+    for(let i=0;i<tr.length;i++){
+      ctx.globalAlpha=(i/tr.length)*0.25;
+      ctx.fillStyle=mb.col;
+      ctx.beginPath();ctx.arc(tr[i].x,tr[i].y,BR*(i/tr.length)*0.7,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    // 본체 (구르기 보이도록 줄무늬)
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(mb.body.angle);
+    // 몸체
+    const g=ctx.createRadialGradient(-1,-1,1,0,0,BR);
+    g.addColorStop(0,'#fff');g.addColorStop(.3,mb.col);g.addColorStop(1,mb.col);
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,BR,0,Math.PI*2);ctx.fill();
+    // 줄무늬 (구르기 시각화)
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(-BR*0.6,-BR*0.3);ctx.lineTo(BR*0.6,BR*0.3);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-BR*0.3,BR*0.6);ctx.lineTo(BR*0.3,-BR*0.6);ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='#fff';ctx.font=`bold ${BR*.85}px Pretendard`;ctx.textAlign='center';ctx.textBaseline='middle';
+    const dn=mb.nm.length>=3?mb.nm.substring(1):mb.nm;
+    ctx.fillText(dn,p.x,p.y);
+  }
+
+  // 추월 감지
+  if(act.length>=2){
+    const sorted=[...act].sort((a,b)=>b.body.position.y-a.body.position.y);
+    const leader=sorted[0].nm;
+    if(prevLeader&&leader!==prevLeader&&MB.length>1){
+      overtakeFlash=40;
+      const lp=sorted[0].body.position;
+      // 피니시 가까우면 UPSET! (더 큰 이펙트)
+      const nearFinish=lp.y>fY*0.75;
+      const txt=nearFinish?'UPSET!!':'OVERTAKE!';
+      const pCount=nearFinish?30:15;
+      for(let i=0;i<pCount;i++){
+        particles.push({x:lp.x,y:lp.y,vx:(Math.random()-.5)*(nearFinish?6:4),vy:(Math.random()-.5)*(nearFinish?6:4),
+          life:1,decay:nearFinish?0.02:0.03,col:sorted[0].col,sz:2+Math.random()*(nearFinish?3:2)});
+      }
+      popups.push({x:lp.x,y:lp.y-20,text:txt,life:nearFinish?90:60,col:sorted[0].col});
+    }
+    prevLeader=leader;
+  }
+
+  // OVERTAKE 플래시
+  if(overtakeFlash>0){
+    ctx.fillStyle=`rgba(255,255,100,${overtakeFlash/200})`;
+    ctx.fillRect(-100,-50,W+200,wH+200);
+    overtakeFlash--;
+  }
+
+  // 팝업 텍스트
+  popups=popups.filter(p=>{
+    p.y-=0.5;p.life--;
+    if(p.life<=0)return false;
+    ctx.globalAlpha=Math.min(1,p.life/20);
+    ctx.fillStyle=p.col;ctx.font='bold 14px Pretendard';ctx.textAlign='center';
+    ctx.fillText(p.text,p.x,p.y);
+    ctx.globalAlpha=1;
+    return true;
+  });
+
+  // 피스톤 그리기 (label='piston')
+  for(const body of Composite.allBodies(eng.world)){
+    if(body.label==='piston'){
+      const v=body.vertices;
+      ctx.fillStyle='#0abde3aa';ctx.shadowColor='#0abde3';ctx.shadowBlur=4;
+      ctx.beginPath();v.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+
+  // Finish line
+  ctx.strokeStyle='#ffd93d';ctx.lineWidth=2;ctx.shadowColor='#ffd93d';ctx.shadowBlur=10;
+  ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(W/2-TW/2,fY);ctx.lineTo(W/2+TW/2,fY);ctx.stroke();
+  ctx.setLineDash([]);ctx.shadowBlur=0;
+  ctx.fillStyle='#ffd93d';ctx.font='bold 10px Pretendard';ctx.textAlign='center';
+  ctx.fillText('FINISH',W/2,fY-5);
+
+  // Finish ranks
+  for(let i=0;i<FO.length;i++){
+    ctx.fillStyle=FO[i].col;ctx.font='bold 8px Pretendard';ctx.textAlign='left';
+    ctx.fillText(`${i+1}등 ${FO[i].nm}`,W/2-30,fY+10+i*12);
+  }
+  ctx.restore();
+
+  // Live positions
+  if(act.length){
+    const sorted=[...MB].filter(b=>!b.fin).sort((a,b)=>b.body.position.y-a.body.position.y);
+    sorted.forEach((b,i)=>{const e=document.getElementById(`hp-${b.idx}`);if(e)e.textContent=FO.length+i+1});
+  }
+  // 타이머 HUD
+  if(raceActive){
+    const t=((Date.now()-raceStart)/1000).toFixed(1);
+    ctx.fillStyle='#ffffff55';ctx.font='bold 14px Pretendard';ctx.textAlign='right';
+    ctx.fillText(t+'s',cv.width-15,cv.height-15);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function updSpin(){for(const s of spinners){
+  if(s.type==='flipper'){
+    // 왕복 회전: ±45도
+    s.angle+=s.speed*s.dir;
+    if(s.angle>0.7||s.angle<-0.7)s.dir*=-1;
+    for(const b of s.bodies){
+      const dx=b.position.x-s.cx,dy=b.position.y-s.cy;
+      const a=s.speed*s.dir,c=Math.cos(a),sn=Math.sin(a);
+      Body.setPosition(b,{x:s.cx+dx*c-dy*sn,y:s.cy+dx*sn+dy*c});
+      Body.setAngle(b,b.angle+s.speed*s.dir);
+    }
+  } else if(s.type==='pendulum'){
+    // 진자: sin 기반 좌우 흔들림
+    s.angle+=s.speed;
+    const swing=Math.sin(s.angle)*0.8; // ±0.8 rad
+    const bx=s.cx+Math.sin(swing)*s.len;
+    const by=s.cy+Math.cos(swing)*s.len;
+    for(const b of s.bodies) Body.setPosition(b,{x:bx,y:by});
+  } else if(s.type==='piston'){
+    // 상하 왕복
+    s.offset+=s.speed;
+    const dy=Math.sin(s.offset)*s.range;
+    for(const b of s.bodies) Body.setPosition(b,{x:s.cx,y:s.cy+dy});
+  } else {
+    // 일반 스피너/십자: 회전
+    for(const b of s.bodies){
+      const dx=b.position.x-s.cx,dy=b.position.y-s.cy;
+      const c=Math.cos(s.speed),sn=Math.sin(s.speed);
+      Body.setPosition(b,{x:s.cx+dx*c-dy*sn,y:s.cy+dx*sn+dy*c});
+      Body.setAngle(b,b.angle+s.speed);
+    }
+  }
+}}
+function chkFin(){
+  if(raceActive)raceTime=(Date.now()-raceStart)/1000;
+  for(const mb of MB){if(mb.fin)continue;if(mb.body.position.y>fY){mb.fin=true;const t=raceTime.toFixed(1);FO.push({nm:mb.nm,col:mb.col,idx:mb.idx,time:t});updHUD();updRank();if(FO.length===MB.length){raceActive=false;setTimeout(showRes,800)}}}
+  // 60초 초과 시 남은 공 강제 피니시 (y순으로)
+  if(raceActive&&raceTime>60){
+    const rem=MB.filter(b=>!b.fin).sort((a,b)=>b.body.position.y-a.body.position.y);
+    for(const mb of rem){mb.fin=true;FO.push({nm:mb.nm,col:mb.col,idx:mb.idx,time:'60+'});updHUD();updRank()}
+    raceActive=false;setTimeout(showRes,800);
+  }
+}
+
+function bHUD(){const h=document.getElementById('hud');h.innerHTML=MB.map((b,i)=>`<div class="hb a" id="hb-${i}" style="background:${b.col}22;color:${b.col};border:1px solid ${b.col}44"><div class="d" style="background:${b.col}"></div>${b.nm}<div class="p" id="hp-${i}">-</div></div>`).join('');h.classList.add('show')}
+function updHUD(){for(let i=0;i<MB.length;i++){if(MB[i].fin){const e=document.getElementById(`hb-${i}`),p=document.getElementById(`hp-${i}`);p.textContent=FO.findIndex(f=>f.idx===i)+1;e.classList.add('f')}}}
+function updRank(){const b=document.getElementById('rb'),e=document.getElementById('re');b.classList.add('show');e.innerHTML='';const ic=['🥇','🥈','🥉'];FO.forEach((item,i)=>{const d=document.createElement('div');d.className='re';d.style.color=item.col;d.style.background=item.col+'11';d.innerHTML=`<span class="rn">${i+1}</span>${ic[i]||''} ${item.nm} <span style="opacity:.5;font-size:.55rem">${item.time}s</span>`;e.appendChild(d);setTimeout(()=>d.classList.add('show'),80+i*120)})}
+
+async function go(){
+  document.getElementById('setup').classList.add('hidden');
+  FO=[];MB=[];spinners=[];build();
+  rnr=Runner.create();Events.on(eng,'beforeUpdate',()=>{updSpin();chkFin()});
+  // 충돌 파티클
+  Events.on(eng,'collisionStart',e=>{
+    for(const pair of e.pairs){
+      const a=pair.bodyA,b=pair.bodyB;
+      const ball=a.label==='ball'?a:b.label==='ball'?b:null;
+      const other=ball===a?b:a;
+      if(!ball)continue;
+      const mb=MB.find(m=>m.body===ball);
+      if(!mb)continue;
+      const cx_=(a.position.x+b.position.x)/2, cy_=(a.position.y+b.position.y)/2;
+      const col=other.label==='spinner'||other.label==='piston'?'#ff9ff3':other.label==='bumper'?'#ff6b6b':mb.col;
+      const n=other.label==='spinner'||other.label==='piston'?8:3;
+      for(let i=0;i<n;i++){
+        particles.push({x:cx_,y:cy_,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,
+          life:1,decay:0.04+Math.random()*0.02,col,sz:1+Math.random()*1.5});
+      }
+    }
+  });
+  Runner.run(rnr,eng);
+  // 카메라: start에서 대기 → 카운트다운
+  cam={x:W/2,y:80,z:cv.height/300,tx:W/2,ty:80,tz:cv.height/300};
+  run=1;draw();
+  await cd();
+  const sh=names.map((n,i)=>({n,c:COL[i%COL.length]}));
+  for(let i=sh.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[sh[i],sh[j]]=[sh[j],sh[i]]}
+  for(let i=0;i<sh.length;i++){
+    const startX=W/2+(Math.random()-0.5)*TW*0.6;
+    const b=Bodies.circle(startX,40,BR,{restitution:0.7,friction:0.05,density:0.001,label:'ball'});
+    Composite.add(eng.world,b);MB.push({body:b,nm:sh[i].n,col:sh[i].c,idx:i,fin:false});
+  }
+  bHUD();
+  raceStart=Date.now();raceActive=true;raceTime=0;
+}
+
+function cd(){return new Promise(r=>{const o=document.getElementById('co'),n=document.getElementById('cn');let c=3;o.classList.add('show');function t(){if(c<=0){n.textContent='GO!';n.style.animation='none';void n.offsetWidth;n.style.animation='pop .5s ease-out';setTimeout(()=>{o.classList.remove('show');r()},400);return}n.textContent=c;n.style.animation='none';void n.offsetWidth;n.style.animation='pop .5s ease-out';c--;setTimeout(t,600)}t()})}
+function showRes(){const o=document.getElementById('ro'),l=document.getElementById('rod');l.innerHTML='';const m=['🥇','🥈','🥉'];FO.forEach((item,i)=>{const d=document.createElement('div');d.className='rr';d.style.background=`${item.col}18`;d.style.color=item.col;d.style.border=`1px solid ${item.col}33`;d.innerHTML=`<span style="font-size:1.2rem;width:24px;text-align:center">${m[i]||''}</span><span class="rn" style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:.75rem">${i+1}</span><span>${item.nm}</span><span style="opacity:.5;font-size:.75rem;margin-left:6px">${item.time}s</span>`;l.appendChild(d);setTimeout(()=>d.classList.add('show'),250+i*250)});setTimeout(()=>o.classList.add('show'),150)}
+function reset(){run=0;if(rnr)Runner.stop(rnr);if(eng)Engine.clear(eng);document.getElementById('ro').classList.remove('show');document.getElementById('hud').classList.remove('show');document.getElementById('rb').classList.remove('show');document.getElementById('setup').classList.remove('hidden');ctx.clearRect(0,0,cv.width,cv.height);MB=[];FO=[];spinners=[];particles=[];popups=[];trails={};prevLeader='';overtakeFlash=0;raceActive=false}
+function slp(ms){return new Promise(r=>setTimeout(r,ms))}
+</script>
+</body>
+</html>
